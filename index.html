@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор Mind Map | Автоматическое построение ментальных карт</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00f0ff;
+            --secondary: #ff00ff;
+            --accent: #ffff00;
+            --dark: #0a0a0f;
+            --darker: #050508;
+            --light: #ffffff;
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --success: #4ecdc4;
+            --error: #ff6b6b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--dark);
+            color: var(--light);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        /* Animated background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: linear-gradient(125deg,
+                var(--dark) 0%,
+                #1a0a2e 25%,
+                #16213e 50%,
+                #0f3460 75%,
+                var(--dark) 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 20s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .grain {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='4' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            pointer-events: none;
+        }
+
+        /* Glass effect */
+        .glass {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.1rem;
+        }
+
+        /* Main layout */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 30px;
+            min-height: calc(100vh - 200px);
+        }
+
+        @media (max-width: 1024px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Input panel */
+        .input-panel {
+            padding: 30px;
+        }
+
+        .panel-title {
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 500;
+        }
+
+        textarea {
+            width: 100%;
+            height: 300px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: var(--light);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            resize: vertical;
+            transition: border-color 0.3s ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        textarea::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .char-count {
+            text-align: right;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 5px;
+        }
+
+        /* Button */
+        .btn {
+            width: 100%;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: var(--dark);
+            box-shadow: 0 10px 40px rgba(0, 240, 255, 0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 50px rgba(0, 240, 255, 0.5);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Loading state */
+        .btn.loading {
+            position: relative;
+            color: transparent;
+        }
+
+        .btn.loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 24px;
+            height: 24px;
+            margin: -12px 0 0 -12px;
+            border: 3px solid var(--dark);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Status message */
+        .status {
+            margin-top: 15px;
+            padding: 12px 15px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .status.error {
+            display: block;
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid var(--error);
+            color: var(--error);
+        }
+
+        .status.success {
+            display: block;
+            background: rgba(78, 205, 196, 0.2);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        /* Tips */
+        .tips {
+            margin-top: 25px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+        }
+
+        .tips-title {
+            font-size: 0.9rem;
+            color: var(--accent);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .tips ul {
+            list-style: none;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .tips li {
+            padding: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .tips li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+        }
+
+        /* Network panel */
+        .network-panel {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #network-canvas {
+            flex: 1;
+            min-height: 600px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 20px;
+            border: 2px solid var(--glass-border);
+        }
+
+        /* Empty state */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            min-height: 600px;
+            color: rgba(255, 255, 255, 0.3);
+            text-align: center;
+            padding: 40px;
+        }
+
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-text {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .empty-hint {
+            font-size: 0.9rem;
+        }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+            padding: 20px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <div class="grain"></div>
+
+    <div class="container">
+        <header>
+            <h1 class="logo">Mind Map Generator</h1>
+            <p class="subtitle">Автоматическое построение ментальных карт из текста введения</p>
+        </header>
+
+        <div class="main-layout">
+            <!-- Input Panel -->
+            <div class="input-panel glass">
+                <h2 class="panel-title">Введите текст</h2>
+
+                <div class="input-group">
+                    <label for="input-text">Текст введения вашей работы:</label>
+                    <textarea
+                        id="input-text"
+                        placeholder="Вставьте сюда текст введения вашей научной работы, курсовой или диссертации...
+
+Например:
+Актуальность исследования обусловлена растущим влиянием технологий машинного обучения на современное искусство. В последние годы наблюдается значительный рост интереса к генеративным моделям..."
+                    ></textarea>
+                    <div class="char-count"><span id="char-count">0</span> символов</div>
+                </div>
+
+                <button class="btn btn-primary" id="generate-btn" onclick="generateMindMap()">
+                    Построить Mind Map
+                </button>
+
+                <div class="status" id="status"></div>
+
+                <div class="tips">
+                    <div class="tips-title">Рекомендации:</div>
+                    <ul>
+                        <li>Оптимальный объём: 500–2000 символов</li>
+                        <li>Лучше всего работает с академическим текстом</li>
+                        <li>Включайте ключевые термины и понятия</li>
+                        <li>Убедитесь, что текст содержит логические связи</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Network Panel -->
+            <div class="network-panel glass">
+                <div id="network-canvas">
+                    <div class="empty-state" id="empty-state">
+                        <div class="empty-icon">🧠</div>
+                        <div class="empty-text">Mind Map появится здесь</div>
+                        <div class="empty-hint">Введите текст и нажмите "Построить Mind Map"</div>
+                    </div>
+                </div>
+
+                <div class="legend glass" id="legend" style="display: none;">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #00f0ff;"></div>
+                        <span>Главная тема</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ff00ff;"></div>
+                        <span>Ключевые концепции</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ffff00;"></div>
+                        <span>Методы и подходы</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #4ecdc4;"></div>
+                        <span>Объекты исследования</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ff6b6b;"></div>
+                        <span>Проблемы и вопросы</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Создано для учебных целей | Powered by <a href="https://groq.com" target="_blank">Groq AI</a></p>
+        </footer>
+    </div>
+
+    <script>
+        // ============================================
+        // ВАЖНО: Вставьте ваш API-ключ Groq здесь
+        // ============================================
+        const GROQ_API_KEY = 'ВАШ_КЛЮЧ_ЗДЕСЬ';
+        // ============================================
+
+        const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+        // Character counter
+        const inputText = document.getElementById('input-text');
+        const charCount = document.getElementById('char-count');
+
+        inputText.addEventListener('input', () => {
+            charCount.textContent = inputText.value.length;
+        });
+
+        // Network instance
+        let network = null;
+
+        // Show status message
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+        }
+
+        // Hide status
+        function hideStatus() {
+            const status = document.getElementById('status');
+            status.className = 'status';
+        }
+
+        // Generate Mind Map
+        async function generateMindMap() {
+            const text = inputText.value.trim();
+
+            if (!text) {
+                showStatus('Пожалуйста, введите текст', 'error');
+                return;
+            }
+
+            if (text.length < 100) {
+                showStatus('Текст слишком короткий. Минимум 100 символов.', 'error');
+                return;
+            }
+
+            if (GROQ_API_KEY === 'ВАШ_КЛЮЧ_ЗДЕСЬ') {
+                showStatus('Ошибка: API-ключ не настроен. Откройте файл и вставьте ключ Groq.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('generate-btn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+            hideStatus();
+
+            try {
+                const mindMapData = await analyzeTex(text);
+                renderMindMap(mindMapData);
+                showStatus('Mind Map успешно построена!', 'success');
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus('Ошибка: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+
+        // Analyze text with Groq API
+        async function analyzeTex(text) {
+            const prompt = `Проанализируй следующий текст введения научной работы и извлеки структуру для ментальной карты (Mind Map).
+
+Верни JSON в следующем формате:
+{
+  "centralTopic": "Главная тема работы (краткое название)",
+  "nodes": [
+    {
+      "id": "уникальный_id",
+      "label": "Название узла (2-4 слова)",
+      "category": "concept|method|object|problem",
+      "importance": 1-5
+    }
+  ],
+  "edges": [
+    {
+      "from": "id_узла_1",
+      "to": "id_узла_2",
+      "label": "тип связи (опционально, 1-2 слова)"
+    }
+  ]
+}
+
+Категории узлов:
+- concept: ключевые концепции и теории
+- method: методы и подходы исследования
+- object: объекты и предметы исследования
+- problem: проблемы и исследовательские вопросы
+
+Правила:
+1. Извлеки 8-15 ключевых узлов
+2. Создай логичные связи между узлами
+3. Главная тема должна быть связана с основными концепциями
+4. Используй короткие, понятные названия узлов
+5. Верни ТОЛЬКО валидный JSON без дополнительного текста
+
+Текст для анализа:
+"""
+${text}
+"""`;
+
+            const response = await fetch(GROQ_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${GROQ_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.3-70b-versatile',
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'Ты — эксперт по анализу научных текстов. Твоя задача — извлекать структуру для построения ментальных карт. Всегда отвечай только валидным JSON без markdown-разметки.'
+                        },
+                        {
+                            role: 'user',
+                            content: prompt
+                        }
+                    ],
+                    temperature: 0.3,
+                    max_tokens: 2000
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `API ошибка: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const content = data.choices[0].message.content;
+
+            // Parse JSON from response
+            let jsonStr = content;
+
+            // Remove markdown code blocks if present
+            const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (jsonMatch) {
+                jsonStr = jsonMatch[1];
+            }
+
+            try {
+                return JSON.parse(jsonStr.trim());
+            } catch (e) {
+                console.error('Failed to parse JSON:', content);
+                throw new Error('Не удалось разобрать ответ AI. Попробуйте ещё раз.');
+            }
+        }
+
+        // Render Mind Map
+        function renderMindMap(data) {
+            const container = document.getElementById('network-canvas');
+            const emptyState = document.getElementById('empty-state');
+            const legend = document.getElementById('legend');
+
+            // Hide empty state
+            if (emptyState) {
+                emptyState.style.display = 'none';
+            }
+            legend.style.display = 'flex';
+
+            // Category colors
+            const categoryColors = {
+                central: '#00f0ff',
+                concept: '#ff00ff',
+                method: '#ffff00',
+                object: '#4ecdc4',
+                problem: '#ff6b6b'
+            };
+
+            // Create nodes
+            const nodes = new vis.DataSet();
+
+            // Add central node
+            nodes.add({
+                id: 'central',
+                label: data.centralTopic,
+                color: {
+                    background: categoryColors.central,
+                    border: '#ffffff',
+                    highlight: { background: '#ffffff', border: categoryColors.central }
+                },
+                size: 45,
+                font: { size: 16, color: '#0a0a0f', face: 'Space Grotesk', bold: true },
+                borderWidth: 3,
+                shadow: { enabled: true, color: categoryColors.central, size: 20 }
+            });
+
+            // Add other nodes
+            data.nodes.forEach(node => {
+                const color = categoryColors[node.category] || categoryColors.concept;
+                const size = 20 + (node.importance || 3) * 5;
+
+                nodes.add({
+                    id: node.id,
+                    label: node.label,
+                    color: {
+                        background: color,
+                        border: 'rgba(255,255,255,0.3)',
+                        highlight: { background: '#ffffff', border: color }
+                    },
+                    size: size,
+                    font: { size: 12, color: '#ffffff', face: 'Inter' },
+                    borderWidth: 2,
+                    shadow: { enabled: true, color: color, size: 10, x: 0, y: 0 }
+                });
+            });
+
+            // Create edges
+            const edges = new vis.DataSet();
+
+            // Connect central topic to main concepts
+            const mainNodes = data.nodes.filter(n => n.importance >= 4).slice(0, 4);
+            mainNodes.forEach(node => {
+                edges.add({
+                    from: 'central',
+                    to: node.id,
+                    color: { color: 'rgba(0, 240, 255, 0.5)', highlight: '#00f0ff' },
+                    width: 3,
+                    smooth: { type: 'continuous' }
+                });
+            });
+
+            // Add edges from data
+            data.edges.forEach((edge, index) => {
+                edges.add({
+                    id: 'edge_' + index,
+                    from: edge.from,
+                    to: edge.to,
+                    label: edge.label || '',
+                    color: { color: 'rgba(255, 255, 255, 0.3)', highlight: '#ff00ff' },
+                    width: 2,
+                    font: { size: 10, color: 'rgba(255,255,255,0.5)', strokeWidth: 0 },
+                    smooth: { type: 'continuous', roundness: 0.5 }
+                });
+            });
+
+            // Network options
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    font: { multi: 'html' }
+                },
+                edges: {
+                    arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+                    smooth: { enabled: true, type: 'continuous' }
+                },
+                physics: {
+                    enabled: true,
+                    barnesHut: {
+                        gravitationalConstant: -8000,
+                        centralGravity: 0.4,
+                        springLength: 150,
+                        springConstant: 0.04,
+                        damping: 0.09,
+                        avoidOverlap: 0.3
+                    },
+                    stabilization: { iterations: 200, fit: true }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 100,
+                    navigationButtons: false,
+                    keyboard: { enabled: true }
+                }
+            };
+
+            // Destroy previous network
+            if (network) {
+                network.destroy();
+            }
+
+            // Create network
+            network = new vis.Network(container, { nodes, edges }, options);
+
+            // Disable physics after stabilization
+            network.on('stabilizationIterationsDone', () => {
+                network.setOptions({ physics: false });
+            });
+        }
+    </script>
+</body>
+</html>
