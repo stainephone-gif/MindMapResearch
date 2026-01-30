@@ -295,24 +295,34 @@
         }
 
         #network-canvas {
-            flex: 1;
-            min-height: 600px;
+            width: 100%;
+            height: 600px;
             background: rgba(0, 0, 0, 0.5);
             border-radius: 20px;
             border: 2px solid var(--glass-border);
+            position: relative;
+            overflow: hidden;
         }
 
         /* Empty state */
         .empty-state {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100%;
-            min-height: 600px;
             color: rgba(255, 255, 255, 0.3);
             text-align: center;
             padding: 40px;
+            z-index: 10;
+        }
+
+        .empty-state.hidden {
+            display: none;
         }
 
         .empty-icon {
@@ -622,10 +632,20 @@ ${text}
             const emptyState = document.getElementById('empty-state');
             const legend = document.getElementById('legend');
 
-            // Hide empty state
-            if (emptyState) {
-                emptyState.style.display = 'none';
+            // Destroy previous network first
+            if (network) {
+                network.destroy();
+                network = null;
             }
+
+            // Remove empty state from DOM completely
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            // Clear container
+            container.innerHTML = '';
+
             legend.style.display = 'flex';
 
             // Category colors
@@ -734,17 +754,13 @@ ${text}
                 }
             };
 
-            // Destroy previous network
-            if (network) {
-                network.destroy();
-            }
-
             // Create network
             network = new vis.Network(container, { nodes, edges }, options);
 
-            // Disable physics after stabilization
+            // Fit to container and disable physics after stabilization
             network.on('stabilizationIterationsDone', () => {
                 network.setOptions({ physics: false });
+                network.fit({ animation: { duration: 500 } });
             });
         }
     </script>
