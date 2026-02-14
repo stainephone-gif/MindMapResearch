@@ -18,7 +18,7 @@ OPENROUTER_API_KEY = 'ВАШ_КЛЮЧ_ЗДЕСЬ'
 
 PORT = 8080
 API_URL = 'https://openrouter.ai/api/v1/chat/completions'
-MODEL = 'deepseek/deepseek-chat-v3-0324:free'  # Бесплатная модель
+MODEL = 'qwen/qwen3-next-80b-a3b-instruct:free'  # Бесплатная модель
 
 
 class MindMapHandler(SimpleHTTPRequestHandler):

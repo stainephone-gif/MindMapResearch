@@ -677,6 +677,8 @@ ${text}
 
             // Add other nodes
             data.nodes.forEach(node => {
+                // Skip if id conflicts with central node
+                if (node.id === 'central') node.id = 'central_sub';
                 const color = categoryColors[node.category] || categoryColors.concept;
                 const size = 20 + (node.importance || 3) * 5;
 

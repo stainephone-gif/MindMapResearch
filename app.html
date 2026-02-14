@@ -556,6 +556,8 @@
             });
 
             data.nodes.forEach(function(node) {
+                // Skip if id conflicts with central node
+                if (node.id === 'central') node.id = 'central_sub';
                 var color = categoryColors[node.category] || categoryColors.concept;
                 var size = 20 + (node.importance || 3) * 5;
 
