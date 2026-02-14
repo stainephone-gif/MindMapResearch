@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор Mind Map | Автоматическое построение ментальных карт</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00f0ff;
+            --secondary: #ff00ff;
+            --accent: #ffff00;
+            --dark: #0a0a0f;
+            --darker: #050508;
+            --light: #ffffff;
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --success: #4ecdc4;
+            --error: #ff6b6b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--dark);
+            color: var(--light);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: linear-gradient(125deg,
+                var(--dark) 0%,
+                #1a0a2e 25%,
+                #16213e 50%,
+                #0f3460 75%,
+                var(--dark) 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 20s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .grain {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='4' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            pointer-events: none;
+        }
+
+        .glass {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.1rem;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .input-panel {
+            padding: 30px;
+        }
+
+        .panel-title {
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 500;
+        }
+
+        textarea {
+            width: 100%;
+            height: 300px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: var(--light);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            resize: vertical;
+            transition: border-color 0.3s ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        textarea::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .char-count {
+            text-align: right;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 5px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: var(--dark);
+            box-shadow: 0 10px 40px rgba(0, 240, 255, 0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 50px rgba(0, 240, 255, 0.5);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn.loading {
+            position: relative;
+            color: transparent;
+        }
+
+        .btn.loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 24px;
+            height: 24px;
+            margin: -12px 0 0 -12px;
+            border: 3px solid var(--dark);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 12px 15px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .status.error {
+            display: block;
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid var(--error);
+            color: var(--error);
+        }
+
+        .status.success {
+            display: block;
+            background: rgba(78, 205, 196, 0.2);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .tips {
+            margin-top: 25px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+        }
+
+        .tips-title {
+            font-size: 0.9rem;
+            color: var(--accent);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .tips ul {
+            list-style: none;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .tips li {
+            padding: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .tips li::before {
+            content: '\2192';
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+        }
+
+        .network-panel {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #network-canvas {
+            width: 100%;
+            height: 600px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 20px;
+            border: 2px solid var(--glass-border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .empty-state {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.3);
+            text-align: center;
+            padding: 40px;
+            z-index: 10;
+        }
+
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-text {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .empty-hint {
+            font-size: 0.9rem;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+            padding: 20px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <div class="grain"></div>
+
+    <div class="container">
+        <header>
+            <h1 class="logo">Mind Map Generator</h1>
+            <p class="subtitle">Автоматическое построение ментальных карт из текста введения</p>
+        </header>
+
+        <div class="main-layout">
+            <div class="input-panel glass">
+                <h2 class="panel-title">Введите текст</h2>
+
+                <div class="input-group">
+                    <label for="input-text">Текст введения вашей работы:</label>
+                    <textarea
+                        id="input-text"
+                        placeholder="Вставьте сюда текст введения вашей научной работы, курсовой или диссертации...
+
+Например:
+Актуальность исследования обусловлена растущим влиянием технологий машинного обучения на современное искусство..."
+                    ></textarea>
+                    <div class="char-count"><span id="char-count">0</span> символов</div>
+                </div>
+
+                <button class="btn btn-primary" id="generate-btn" onclick="generateMindMap()">
+                    Построить Mind Map
+                </button>
+
+                <div class="status" id="status"></div>
+
+                <div class="tips">
+                    <div class="tips-title">Рекомендации:</div>
+                    <ul>
+                        <li>Оптимальный объём: 500–2000 символов</li>
+                        <li>Лучше всего работает с академическим текстом</li>
+                        <li>Включайте ключевые термины и понятия</li>
+                        <li>Убедитесь, что текст содержит логические связи</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="network-panel glass">
+                <div id="network-canvas">
+                    <div class="empty-state" id="empty-state">
+                        <div class="empty-icon">&#129504;</div>
+                        <div class="empty-text">Mind Map появится здесь</div>
+                        <div class="empty-hint">Введите текст и нажмите «Построить Mind Map»</div>
+                    </div>
+                </div>
+
+                <div class="legend glass" id="legend" style="display: none;">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #00f0ff;"></div>
+                        <span>Главная тема</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ff00ff;"></div>
+                        <span>Ключевые концепции</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ffff00;"></div>
+                        <span>Методы и подходы</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #4ecdc4;"></div>
+                        <span>Объекты исследования</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ff6b6b;"></div>
+                        <span>Проблемы и вопросы</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Создано для учебных целей</p>
+        </footer>
+    </div>
+
+    <script>
+        // Character counter
+        const inputText = document.getElementById('input-text');
+        const charCount = document.getElementById('char-count');
+
+        inputText.addEventListener('input', function() {
+            charCount.textContent = inputText.value.length;
+        });
+
+        // Network instance
+        var network = null;
+
+        function showStatus(message, type) {
+            var status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+        }
+
+        function hideStatus() {
+            var status = document.getElementById('status');
+            status.className = 'status';
+        }
+
+        // Generate Mind Map — calls local server
+        async function generateMindMap() {
+            var text = inputText.value.trim();
+
+            if (!text) {
+                showStatus('Пожалуйста, введите текст', 'error');
+                return;
+            }
+
+            if (text.length < 100) {
+                showStatus('Текст слишком короткий. Минимум 100 символов.', 'error');
+                return;
+            }
+
+            var btn = document.getElementById('generate-btn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+            hideStatus();
+
+            try {
+                var response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) {
+                    var errData = await response.json().catch(function() { return {}; });
+                    throw new Error(errData.error || 'Ошибка сервера: ' + response.status);
+                }
+
+                var mindMapData = await response.json();
+                renderMindMap(mindMapData);
+                showStatus('Mind Map успешно построена!', 'success');
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus('Ошибка: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+
+        // Render Mind Map
+        function renderMindMap(data) {
+            var container = document.getElementById('network-canvas');
+            var emptyState = document.getElementById('empty-state');
+            var legend = document.getElementById('legend');
+
+            // Destroy previous network
+            if (network) {
+                network.destroy();
+                network = null;
+            }
+
+            // Remove empty state
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            container.innerHTML = '';
+            legend.style.display = 'flex';
+
+            var categoryColors = {
+                central: '#00f0ff',
+                concept: '#ff00ff',
+                method: '#ffff00',
+                object: '#4ecdc4',
+                problem: '#ff6b6b'
+            };
+
+            var nodes = new vis.DataSet();
+
+            nodes.add({
+                id: 'central',
+                label: data.centralTopic,
+                color: {
+                    background: categoryColors.central,
+                    border: '#ffffff',
+                    highlight: { background: '#ffffff', border: categoryColors.central }
+                },
+                size: 45,
+                font: { size: 16, color: '#0a0a0f', face: 'Space Grotesk', bold: true },
+                borderWidth: 3,
+                shadow: { enabled: true, color: categoryColors.central, size: 20 }
+            });
+
+            data.nodes.forEach(function(node) {
+                var color = categoryColors[node.category] || categoryColors.concept;
+                var size = 20 + (node.importance || 3) * 5;
+
+                nodes.add({
+                    id: node.id,
+                    label: node.label,
+                    color: {
+                        background: color,
+                        border: 'rgba(255,255,255,0.3)',
+                        highlight: { background: '#ffffff', border: color }
+                    },
+                    size: size,
+                    font: { size: 12, color: '#ffffff', face: 'Inter' },
+                    borderWidth: 2,
+                    shadow: { enabled: true, color: color, size: 10, x: 0, y: 0 }
+                });
+            });
+
+            var edges = new vis.DataSet();
+
+            var mainNodes = data.nodes.filter(function(n) { return n.importance >= 4; }).slice(0, 4);
+            mainNodes.forEach(function(node) {
+                edges.add({
+                    from: 'central',
+                    to: node.id,
+                    color: { color: 'rgba(0, 240, 255, 0.5)', highlight: '#00f0ff' },
+                    width: 3,
+                    smooth: { type: 'continuous' }
+                });
+            });
+
+            data.edges.forEach(function(edge, index) {
+                edges.add({
+                    id: 'edge_' + index,
+                    from: edge.from,
+                    to: edge.to,
+                    label: edge.label || '',
+                    color: { color: 'rgba(255, 255, 255, 0.3)', highlight: '#ff00ff' },
+                    width: 2,
+                    font: { size: 10, color: 'rgba(255,255,255,0.5)', strokeWidth: 0 },
+                    smooth: { type: 'continuous', roundness: 0.5 }
+                });
+            });
+
+            var options = {
+                nodes: {
+                    shape: 'dot',
+                    font: { multi: 'html' }
+                },
+                edges: {
+                    arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+                    smooth: { enabled: true, type: 'continuous' }
+                },
+                physics: {
+                    enabled: true,
+                    barnesHut: {
+                        gravitationalConstant: -8000,
+                        centralGravity: 0.4,
+                        springLength: 150,
+                        springConstant: 0.04,
+                        damping: 0.09,
+                        avoidOverlap: 0.3
+                    },
+                    stabilization: { iterations: 200, fit: true }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 100,
+                    navigationButtons: false,
+                    keyboard: { enabled: true }
+                }
+            };
+
+            network = new vis.Network(container, { nodes: nodes, edges: edges }, options);
+
+            network.on('stabilizationIterationsDone', function() {
+                network.setOptions({ physics: false });
+                network.fit({ animation: { duration: 500 } });
+            });
+        }
+    </script>
+</body>
+</html>
