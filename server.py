@@ -10,13 +10,15 @@ import urllib.request
 import ssl
 
 # ============================================
-# ВАЖНО: Вставьте ваш API-ключ Groq здесь
+# ВАЖНО: Вставьте ваш API-ключ OpenRouter здесь
+# Получить ключ: https://openrouter.ai/keys
 # ============================================
-GROQ_API_KEY = 'ВАШ_КЛЮЧ_ЗДЕСЬ'
+OPENROUTER_API_KEY = 'ВАШ_КЛЮЧ_ЗДЕСЬ'
 # ============================================
 
 PORT = 8080
-GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
+API_URL = 'https://openrouter.ai/api/v1/chat/completions'
+MODEL = 'deepseek/deepseek-chat-v3-0324:free'  # Бесплатная модель
 
 
 class MindMapHandler(SimpleHTTPRequestHandler):
@@ -39,15 +41,15 @@ class MindMapHandler(SimpleHTTPRequestHandler):
                 self.send_json(400, {'error': 'Текст слишком короткий (минимум 100 символов)'})
                 return
 
-            # Call Groq API
-            result = self.call_groq(text)
+            # Call OpenRouter API
+            result = self.call_openrouter(text)
             self.send_json(200, result)
 
         except Exception as e:
             print(f'Error: {e}')
             self.send_json(500, {'error': str(e)})
 
-    def call_groq(self, text):
+    def call_openrouter(self, text):
         prompt = f'''Проанализируй следующий текст введения научной работы и извлеки структуру для ментальной карты (Mind Map).
 
 Верни JSON в следующем формате:
@@ -89,7 +91,7 @@ class MindMapHandler(SimpleHTTPRequestHandler):
 """'''
 
         payload = json.dumps({
-            'model': 'llama-3.3-70b-versatile',
+            'model': MODEL,
             'messages': [
                 {
                     'role': 'system',
@@ -105,11 +107,13 @@ class MindMapHandler(SimpleHTTPRequestHandler):
         }).encode('utf-8')
 
         req = urllib.request.Request(
-            GROQ_API_URL,
+            API_URL,
             data=payload,
             headers={
-                'Authorization': f'Bearer {GROQ_API_KEY}',
-                'Content-Type': 'application/json'
+                'Authorization': f'Bearer {OPENROUTER_API_KEY}',
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'http://localhost:8080',
+                'X-Title': 'Mind Map Generator'
             }
         )
 
@@ -143,16 +147,17 @@ class MindMapHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    if GROQ_API_KEY == 'ВАШ_КЛЮЧ_ЗДЕСЬ':
+    if OPENROUTER_API_KEY == 'ВАШ_КЛЮЧ_ЗДЕСЬ':
         print('=' * 50)
-        print('ОШИБКА: Вставьте API-ключ Groq в server.py')
-        print('Строка: GROQ_API_KEY = "ВАШ_КЛЮЧ_ЗДЕСЬ"')
+        print('ОШИБКА: Вставьте API-ключ OpenRouter в server.py')
+        print('Получить ключ: https://openrouter.ai/keys')
         print('=' * 50)
         exit(1)
 
     server = HTTPServer(('0.0.0.0', PORT), MindMapHandler)
     print('=' * 50)
     print(f'  Mind Map Generator запущен!')
+    print(f'  API: OpenRouter ({MODEL})')
     print(f'  Локально:  http://localhost:{PORT}')
     print(f'  В сети:    используйте ngrok')
     print('=' * 50)
