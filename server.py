@@ -125,6 +125,7 @@ class MindMapHandler(SimpleHTTPRequestHandler):
 
         content = data['choices'][0]['message']['content']
         print(f'AI response length: {len(content)} chars')
+        print(f'AI raw response:\n{content[:500]}...')  # Show first 500 chars
 
         # Remove <think>...</think> blocks (some models add reasoning)
         content = re.sub(r'<think>[\s\S]*?</think>', '', content)
@@ -143,7 +144,14 @@ class MindMapHandler(SimpleHTTPRequestHandler):
         # Fix common JSON issues: trailing commas
         content = re.sub(r',\s*([}\]])', r'\1', content)
 
-        return json.loads(content)
+        print(f'Parsed JSON length: {len(content)} chars')
+
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            print(f'JSON parse error: {e}')
+            print(f'Content around error: ...{content[max(0,e.pos-50):e.pos+50]}...')
+            raise
 
     def send_json(self, status, data):
         response = json.dumps(data, ensure_ascii=False).encode('utf-8')
