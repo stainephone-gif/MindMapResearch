@@ -121,16 +121,29 @@ class MindMapHandler(SimpleHTTPRequestHandler):
         with urllib.request.urlopen(req, context=ctx) as response:
             data = json.loads(response.read())
 
+        import re
+
         content = data['choices'][0]['message']['content']
+        print(f'AI response length: {len(content)} chars')
+
+        # Remove <think>...</think> blocks (some models add reasoning)
+        content = re.sub(r'<think>[\s\S]*?</think>', '', content)
 
         # Remove markdown code blocks if present
-        if '```' in content:
-            import re
-            match = re.search(r'```(?:json)?\s*([\s\S]*?)```', content)
-            if match:
-                content = match.group(1)
+        match = re.search(r'```(?:json)?\s*([\s\S]*?)```', content)
+        if match:
+            content = match.group(1)
 
-        return json.loads(content.strip())
+        # Try to find JSON object in the response
+        content = content.strip()
+        json_match = re.search(r'\{[\s\S]*\}', content)
+        if json_match:
+            content = json_match.group(0)
+
+        # Fix common JSON issues: trailing commas
+        content = re.sub(r',\s*([}\]])', r'\1', content)
+
+        return json.loads(content)
 
     def send_json(self, status, data):
         response = json.dumps(data, ensure_ascii=False).encode('utf-8')
